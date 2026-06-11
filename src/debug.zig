@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const Chunk = @import("chunk.zig").Chunk;
+const Chunk = @import("chunk.zig");
 const Op = @import("chunk.zig").Op;
+const Value = @import("chunk.zig").Value;
+
 const String = []const u8;
 
 pub fn disassembleChunk(chunk: Chunk, name: String) void {
@@ -19,11 +21,10 @@ pub fn disassembleInst(chunk: Chunk, offset: usize) usize {
 
     switch (inst) {
         Op.RETURN => return simpleInst("OP_RETURN", offset),
-        // TODO else branch returns error, disassemble returns error union
-        // else => {
-        //     std.debug.print("Unknown opcode {d}\n", .{inst});
-        //     return offset + 1;
-        // },
+        else => {
+            std.debug.print("Unknown opcode {d}\n", .{inst});
+            return offset + 1;
+        },
     }
 }
 
