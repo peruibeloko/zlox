@@ -57,18 +57,22 @@ fn writeLine(self: *Chunk, line: usize) !void {
     }
 }
 
-// todo tá errado
 fn getLine(self: *Chunk, inst_index: usize) usize {
+    var total_inst_count: usize = 0;
+
+    var current_line: usize = 0;
+    var line_inst_count: usize = 0;
+
     var iter = self.lines.iterator();
-    var offset: usize = 0;
-    var line: usize = 0;
-    var count: usize = 0;
     while (iter.next()) |entry| {
-        line = entry.key_ptr.*;
-        count = entry.value_ptr.*;
-        offset += count;
-        if (offset >= inst_index) return line;
-    } else return line;
+        current_line = entry.key_ptr.*;
+        line_inst_count = entry.value_ptr.*;
+
+        total_inst_count += line_inst_count;
+        const last_inst_offset = total_inst_count - 1;
+
+        if (last_inst_offset >= inst_index) return current_line;
+    } else return current_line;
 }
 
 pub fn disassemble(self: *Chunk, name: String) void {
@@ -81,9 +85,9 @@ pub fn disassemble(self: *Chunk, name: String) void {
 }
 
 fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
+    const line = self.getLine(inst_offset);
     printf("{d:04} ", .{inst_offset});
 
-    const line = self.getLine(inst_offset);
     if (inst_offset > 0 and line == self.getLine(inst_offset - 1)) {
         printf("   | ", .{});
     } else {
