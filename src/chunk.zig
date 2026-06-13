@@ -9,6 +9,7 @@ pub const Value = f32;
 
 pub const Op = enum(u8) {
     CONST,
+    NEGATE,
     RETURN,
 
     pub fn toU8(self: Op) u8 {
@@ -84,7 +85,7 @@ pub fn disassemble(self: *Chunk, name: String) void {
     }
 }
 
-fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
+pub fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
     const line = self.getLine(inst_offset);
     printf("{d:04} ", .{inst_offset});
 
@@ -98,6 +99,7 @@ fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
 
     switch (inst) {
         Op.CONST => return self.constantInst("OP_CONST", inst_offset),
+        Op.NEGATE => return Chunk.simpleInst("OP_NEGATE", inst_offset),
         Op.RETURN => return Chunk.simpleInst("OP_RETURN", inst_offset),
     }
 }
@@ -115,6 +117,6 @@ fn simpleInst(name: String, inst_offset: usize) usize {
     return inst_offset + 1;
 }
 
-fn printValue(value: Value) void {
+pub fn printValue(value: Value) void {
     printf("{any}", .{value});
 }

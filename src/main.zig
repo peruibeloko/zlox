@@ -20,8 +20,8 @@ pub fn main() !void {
     const constant_offset = try chunk.addConstant(1.2);
     try chunk.write(Op.CONST.toU8(), 123);
     try chunk.write(constant_offset, 123);
-    try chunk.write(Op.RETURN.toU8(), 124);
-
+    try chunk.write(Op.NEGATE.toU8(), 124);
+    try chunk.write(Op.RETURN.toU8(), 125);
     chunk.disassemble("test chunk");
     _ = vm.interpret(chunk);
 }
