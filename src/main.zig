@@ -3,6 +3,7 @@ const std = @import("std");
 const Chunk = @import("chunk.zig");
 const Op = @import("chunk.zig").Op;
 const Value = @import("chunk.zig").Value;
+const Vm = @import("vm.zig");
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -10,7 +11,11 @@ pub fn main() !void {
 
     const gpa = arena.allocator();
 
+    var vm = try Vm.init(gpa);
+    defer vm.free();
+
     var chunk = Chunk.init(gpa);
+    defer chunk.free();
 
     const constant_offset = try chunk.addConstant(1.2);
     try chunk.write(Op.CONST.toU8(), 123);
@@ -18,6 +23,5 @@ pub fn main() !void {
     try chunk.write(Op.RETURN.toU8(), 124);
 
     chunk.disassemble("test chunk");
-
-    chunk.free();
+    _ = vm.interpret(chunk);
 }
