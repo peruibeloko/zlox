@@ -7,6 +7,7 @@ const DEBUG_MODE = true;
 const Chunk = @import("chunk.zig");
 const Op = @import("chunk.zig").Op;
 const Value = @import("chunk.zig").Value;
+const Compiler = @import("compiler.zig");
 
 const Vm = @This();
 
@@ -34,10 +35,9 @@ pub fn free(self: *Vm) void {
     self.stack.deinit(self.allocator);
 }
 
-pub fn interpret(self: *Vm, chunk: Chunk) InterpretResult {
-    self.chunk = chunk;
-    self.ip = self.chunk.code.items.ptr;
-    return self.run() catch InterpretResult.RuntimeError;
+pub fn interpret(source: []u8) InterpretResult {
+    Compiler.compile(source);
+    return InterpretResult.Ok;
 }
 
 fn readByte(self: *Vm) u8 {
