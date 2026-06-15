@@ -1,6 +1,7 @@
 const std = @import("std");
-const printf = @import("std").debug.print;
+const printf = std.log.debug;
 const Allocator = std.mem.Allocator;
+
 const String = []const u8;
 
 const Chunk = @This();
