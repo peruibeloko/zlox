@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const printf = @import("std").debug.print;
+const printf = std.log.debug;
 
 const DEBUG_MODE = true;
 
@@ -10,8 +10,8 @@ const Value = @import("chunk.zig").Value;
 
 const Vm = @This();
 
-const InterpretResult = enum {
-    OK,
+pub const InterpretResult = enum {
+    Ok,
     CompileError,
     RuntimeError,
 };
@@ -62,6 +62,30 @@ fn peek(self: *Vm) !Value {
     return self.stack.getLastOrNull() orelse error.EmptyStack;
 }
 
+fn add(a: Value, b: Value) Value {
+    return a + b;
+}
+
+fn sub(a: Value, b: Value) Value {
+    return a - b;
+}
+
+fn mul(a: Value, b: Value) Value {
+    return a * b;
+}
+
+fn div(a: Value, b: Value) Value {
+    return a / b;
+}
+
+const BinOp = fn (a: Value, b: Value) Value;
+
+fn binaryOp(self: *Vm, op: BinOp) !void {
+    const b: Value = try self.pop();
+    const a: Value = try self.pop();
+    try self.push(op(a, b));
+}
+
 pub fn run(self: *Vm) !InterpretResult {
     while (true) {
         if (DEBUG_MODE) self.showTrace();
@@ -75,12 +99,17 @@ pub fn run(self: *Vm) !InterpretResult {
                 printf("\n", .{});
             },
 
+            Op.ADD => try self.binaryOp(add),
+            Op.SUB => try self.binaryOp(sub),
+            Op.MULT => try self.binaryOp(mul),
+            Op.DIV => try self.binaryOp(div),
+
             Op.NEGATE => try self.push(-try self.pop()),
 
             Op.RETURN => {
                 Chunk.printValue(try self.pop());
                 printf("\n", .{});
-                return InterpretResult.OK;
+                return InterpretResult.Ok;
             },
         }
     }
@@ -90,5 +119,8 @@ fn showTrace(self: *Vm) void {
     printf("          ", .{});
     printf("{any}", .{self.stack.items});
     printf("\n", .{});
+
+    // end address - start address = position offset
+    // remember, pointers are just addresses, and addresses are just numbers
     _ = self.chunk.disassembleInst(self.ip - self.chunk.code.items.ptr);
 }
