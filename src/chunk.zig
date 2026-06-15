@@ -9,11 +9,15 @@ const Chunk = @This();
 pub const Value = f32;
 
 pub const Op = enum(u8) {
-    CONST,
-    NEGATE,
-    RETURN,
+    Const,
+    Add,
+    Sub,
+    Mult,
+    Div,
+    Negate,
+    Return,
 
-    pub fn toU8(self: Op) u8 {
+    pub fn U8(self: Op) u8 {
         return @intFromEnum(self);
     }
 };
@@ -99,9 +103,13 @@ pub fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
     const inst: Op = @enumFromInt(self.code.items[inst_offset]);
 
     switch (inst) {
-        Op.CONST => return self.constantInst("OP_CONST", inst_offset),
-        Op.NEGATE => return Chunk.simpleInst("OP_NEGATE", inst_offset),
-        Op.RETURN => return Chunk.simpleInst("OP_RETURN", inst_offset),
+        Op.Const => return self.constantInst("OP_CONST", inst_offset),
+        Op.Add => return Chunk.simpleInst("OP_ADD", inst_offset),
+        Op.Sub => return Chunk.simpleInst("OP_SUB", inst_offset),
+        Op.Mult => return Chunk.simpleInst("OP_MULT", inst_offset),
+        Op.Div => return Chunk.simpleInst("OP_DIV", inst_offset),
+        Op.Negate => return Chunk.simpleInst("OP_NEGATE", inst_offset),
+        Op.Return => return Chunk.simpleInst("OP_RETURN", inst_offset),
     }
 }
 
