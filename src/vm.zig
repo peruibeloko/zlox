@@ -35,9 +35,18 @@ pub fn free(self: *Vm) void {
     self.stack.deinit(self.allocator);
 }
 
-pub fn interpret(source: []u8) InterpretResult {
-    Compiler.compile(source);
-    return InterpretResult.Ok;
+pub fn interpret(self: *Vm, source: []u8) InterpretResult {
+    const chunk = Compiler.compile(source);
+
+    self.chunk = chunk;
+    self.ip = self.chunk.code.items.ptr;
+
+    const result = self.run() catch {
+        return InterpretResult.RuntimeError;
+    };
+
+    self.free();
+    return result;
 }
 
 fn readByte(self: *Vm) u8 {
@@ -62,19 +71,19 @@ fn peek(self: *Vm) !Value {
     return self.stack.getLastOrNull() orelse error.EmptyStack;
 }
 
-fn add(a: Value, b: Value) Value {
+inline fn add(a: Value, b: Value) Value {
     return a + b;
 }
 
-fn sub(a: Value, b: Value) Value {
+inline fn sub(a: Value, b: Value) Value {
     return a - b;
 }
 
-fn mul(a: Value, b: Value) Value {
+inline fn mul(a: Value, b: Value) Value {
     return a * b;
 }
 
-fn div(a: Value, b: Value) Value {
+inline fn div(a: Value, b: Value) Value {
     return a / b;
 }
 

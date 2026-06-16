@@ -9,6 +9,12 @@ start: [*]u8,
 current: [*]u8,
 line: usize,
 
+pub const empty: Scanner = .{
+    .start = null,
+    .current = null,
+    .line = 0,
+};
+
 pub fn init(source: []u8) Scanner {
     return .{
         .start = source.ptr,
@@ -21,7 +27,7 @@ fn isAtEnd(self: *Scanner) bool {
     return self.current[0] == 0;
 }
 
-fn advance(self: *Scanner) u8 {
+pub fn advance(self: *Scanner) u8 {
     self.current += 1;
     return self.current[-1];
 }

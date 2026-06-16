@@ -49,7 +49,13 @@ pub const TokenType = enum(u8) {
     Eof,
 };
 
+const Token = @This();
+
 type: TokenType,
 start: [*]u8,
 length: usize,
 line: usize,
+
+pub fn getString(self: *Token) []u8 {
+    return self.start[0..self.length];
+}
