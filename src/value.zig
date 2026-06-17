@@ -1,1 +1,1 @@
-pub const Value = f32;
+pub const Value = f64;
