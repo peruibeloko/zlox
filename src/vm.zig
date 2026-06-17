@@ -36,7 +36,9 @@ pub fn free(self: *Vm) void {
 }
 
 pub fn interpret(self: *Vm, source: []u8) InterpretResult {
-    const chunk = Compiler.compile(source);
+    const chunk = Compiler.init(self.allocator).compile(source) catch {
+        return InterpretResult.CompileError;
+    };
 
     self.chunk = chunk;
     self.ip = self.chunk.code.items.ptr;

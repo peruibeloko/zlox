@@ -1,22 +1,30 @@
 const std = @import("std");
 const printf = std.log.debug;
+const Allocator = std.mem.Allocator;
 
 const Scanner = @import("scanner.zig");
 const Token = @import("token.zig");
 const TokenType = @import("token.zig").TokenType;
 const Chunk = @import("chunk.zig");
 const Parser = @import("parser.zig");
+const Op = @import("opcodes.zig").Op;
 
 const Compiler = @This();
 const Self = *Compiler;
 
 parser: Parser,
 scanner: Scanner,
+compilingChunk: Chunk,
 
-pub fn init() Compiler {
+fn currentChunk(self: Self) Chunk {
+    return self.compilingChunk;
+}
+
+pub fn init(gpa: Allocator) Compiler {
     return .{
         .parser = .empty,
         .scanner = .empty,
+        .compilingChunk = Chunk.init(gpa),
     };
 }
 
@@ -28,7 +36,8 @@ pub fn compile(self: Self, source: []u8) !Chunk {
 
     self.scanner.advance();
     // expression();
-    // consume(TokenType.Eof, "Expect end of expression.");
+    consume(TokenType.Eof, "Expect end of expression.");
+    self.end();
     if (self.parser.had_error) return error.CompileError;
     // return ;
 }
@@ -51,4 +60,21 @@ fn consume(self: Self, token_type: TokenType, message: []u8) void {
     }
 
     self.parser.errorAtCurrent(message);
+}
+
+fn emitByte(self: Self, byte: u8) void {
+    self.currentChunk().write(byte, self.parser.previous.line);
+}
+
+fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
+    self.emitByte(byte1);
+    self.emitByte(byte2);
+}
+
+fn emitReturn(self: Self) void {
+    self.emitByte(Op.Return.U8());
+}
+
+fn end(self: Self) void {
+    self.emitReturn();
 }
