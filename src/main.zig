@@ -11,39 +11,41 @@ pub fn main(init: std.process.Init) !void {
     const gpa = init.arena.allocator();
 
     var vm = try Vm.init(gpa);
-    defer vm.free();
 
     const args = try init.minimal.args.toSlice(gpa);
 
     switch (args.len) {
-        1 => repl(),
-        2 => runFile(init.io, gpa, args[1]),
+        1 => try repl(init.io, &vm),
+        2 => runFile(init.io, gpa, &vm, args[1]),
         else => {
             std.log.err("Usage: zlox [path]\n", .{});
             std.process.exit(64);
         },
     }
+
+    vm.free();
 }
 
-fn repl() void {
-    var line: []u8 = undefined;
+fn repl(io: std.Io, vm: *Vm) !void {
+    var line: []const u8 = undefined;
     while (true) {
-        UserIo.write("> ", .{});
-        line = UserIo.readLine();
+        try UserIo.write(io, "> ", .{});
+        line = try UserIo.readLine(io);
         if (line.len == 0) {
-            UserIo.write("\n", .{});
+            try UserIo.write(io, "\n", .{});
             break;
         }
 
-        Vm.interpret(line);
+        vm.interpret(line);
     }
 }
 
-fn runFile(io: std.Io, gpa: std.mem.Allocator, path: []u8) void {
-    const source = UserIo.readFile(io, gpa, path);
+fn runFile(io: std.Io, gpa: std.mem.Allocator, vm: *Vm, path: [:0]const u8) !void {
+    const source = try UserIo.readFile(io, gpa, path);
     defer gpa.destroy(source);
 
-    const result = Vm.interpret(source);
+    const result = vm.interpret(source);
+
     if (result == Vm.InterpretResult.CompileError) std.process.exit(65);
     if (result == Vm.InterpretResult.RuntimeError) std.process.exit(70);
 }

@@ -6,7 +6,7 @@ pub const DEBUG_MODE = true;
 
 const Chunk = @import("chunk.zig");
 const Op = @import("chunk.zig").Op;
-const Value = @import("chunk.zig").Value;
+const Value = @import("value.zig").Value;
 const Compiler = @import("compiler.zig");
 
 const Vm = @This();

@@ -17,7 +17,7 @@ pub fn readFile(io: Io, gpa: Allocator, path: []const u8) ![]const u8 {
     return try Dir.readFileAlloc(Dir.cwd(), io, path, gpa);
 }
 
-pub fn write(io: Io, fmt: []const u8, args: anytype) !void {
+pub fn write(io: Io, comptime fmt: []const u8, args: anytype) !void {
     var stdout_buffer: [1024]u8 = undefined;
     var stdout_file_writer: Io.File.Writer = .init(.stdout(), io, &stdout_buffer);
     const stdout_writer = &stdout_file_writer.interface;
