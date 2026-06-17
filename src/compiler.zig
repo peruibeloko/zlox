@@ -9,6 +9,7 @@ const Chunk = @import("chunk.zig");
 const Parser = @import("parser.zig");
 const Op = @import("opcodes.zig").Op;
 const Value = @import("value.zig").Value;
+const DEBUG_MODE = @import("vm.zig").DEBUG_MODE;
 
 const Compiler = @This();
 const Self = *Compiler;
@@ -26,6 +27,14 @@ const Precedence = enum(u8) {
     Call, // . ()
     Primary,
 };
+
+const ParseRule = struct {
+    prefix: ParseFn,
+    infix: ParseFn,
+    precedence: Precedence,
+};
+
+const ParseFn = *const fn (self: Self) void;
 
 parser: Parser,
 scanner: Scanner,
@@ -111,6 +120,10 @@ fn emitConstant(self: Self, value: Value) void {
 
 fn end(self: Self) void {
     self.emitReturn();
+
+    if (DEBUG_MODE and !self.parser.had_error) {
+        self.currentChunk().disassemble("code");
+    }
 }
 
 fn binary(self: Self) void {
@@ -143,7 +156,7 @@ fn unary(self: Self) void {
     self.parsePrecedence(Precedence.Unary);
 
     switch (opType) {
-        TokenType.Minus => self.emitByte(Op.Negate),
+        TokenType.Minus => self.emitByte(Op.Negate.U8()),
         else => return,
     }
 }
@@ -152,7 +165,67 @@ fn expression(self: Self) void {
     self.parsePrecedence(Precedence.Assignment);
 }
 
-fn parsePrecedence(self: Self, prec: Precedence) void {
-    _ = self;
-    _ = prec;
+fn parsePrecedence(self: Self, precedence: Precedence) void {
+    self.advance();
+    const prefixRule = getRule(self.parser.previous.type).prefix.*;
+
+    if (prefixRule == null) {
+        self.parser.err("Expect expression.");
+        return;
+    }
+
+    prefixRule(self);
+
+    while (precedence <= getRule(self.parser.current.type).precedence) {
+        self.advance();
+        const infixRule = getRule(self.parser.previous.type).infix.*;
+        infixRule(self);
+    }
+}
+
+fn getRule(token_type: TokenType) ParseRule {
+    return switch (token_type) {
+        // zig fmt: off
+        .LeftParen    => .{ grouping, null,   .None },
+        .RightParen   => .{ null,     null,   .None },
+        .LeftBrace    => .{ null,     null,   .None },
+        .RightBrace   => .{ null,     null,   .None },
+        .Comma        => .{ null,     null,   .None },
+        .Dot          => .{ null,     null,   .None },
+        .Minus        => .{ unary,    binary, .Term },
+        .Plus         => .{ null,     binary, .Term },
+        .Semicolon    => .{ null,     null,   .None },
+        .Slash        => .{ null,     binary, .Factor },
+        .Star         => .{ null,     binary, .Factor },
+        .Bang         => .{ null,     null,   .None },
+        .BangEqual    => .{ null,     null,   .None },
+        .Equal        => .{ null,     null,   .None },
+        .EqualEqual   => .{ null,     null,   .None },
+        .Greater      => .{ null,     null,   .None },
+        .GreaterEqual => .{ null,     null,   .None },
+        .Less         => .{ null,     null,   .None },
+        .LessEqual    => .{ null,     null,   .None },
+        .Identifier   => .{ null,     null,   .None },
+        .String       => .{ null,     null,   .None },
+        .Number       => .{ number,   null,   .None },
+        .And          => .{ null,     null,   .None },
+        .Class        => .{ null,     null,   .None },
+        .Else         => .{ null,     null,   .None },
+        .False        => .{ null,     null,   .None },
+        .For          => .{ null,     null,   .None },
+        .Fun          => .{ null,     null,   .None },
+        .If           => .{ null,     null,   .None },
+        .Nil          => .{ null,     null,   .None },
+        .Or           => .{ null,     null,   .None },
+        .Print        => .{ null,     null,   .None },
+        .Return       => .{ null,     null,   .None },
+        .Super        => .{ null,     null,   .None },
+        .This         => .{ null,     null,   .None },
+        .True         => .{ null,     null,   .None },
+        .Var          => .{ null,     null,   .None },
+        .While        => .{ null,     null,   .None },
+        .Error        => .{ null,     null,   .None },
+        .Eof          => .{ null,     null,   .None },
+        // zig fmt: on
+    };
 }

@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const printf = std.log.debug;
 
-const DEBUG_MODE = true;
+pub const DEBUG_MODE = true;
 
 const Chunk = @import("chunk.zig");
 const Op = @import("chunk.zig").Op;
