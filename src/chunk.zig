@@ -1,26 +1,12 @@
 const std = @import("std");
 const printf = std.log.debug;
 const Allocator = std.mem.Allocator;
-
 const String = []const u8;
 
+const Value = @import("value.zig").Value;
+const Op = @import("opcodes.zig").Op;
+
 const Chunk = @This();
-
-pub const Value = f32;
-
-pub const Op = enum(u8) {
-    Const,
-    Add,
-    Sub,
-    Mult,
-    Div,
-    Negate,
-    Return,
-
-    pub fn U8(self: Op) u8 {
-        return @intFromEnum(self);
-    }
-};
 
 allocator: Allocator,
 code: std.ArrayList(u8),
