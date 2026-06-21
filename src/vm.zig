@@ -5,7 +5,7 @@ const printf = std.log.debug;
 pub const DEBUG_MODE = true;
 
 const Chunk = @import("chunk.zig");
-const Op = @import("chunk.zig").Op;
+const Op = @import("opcodes.zig").Op;
 const Value = @import("value.zig").Value;
 const Compiler = @import("compiler.zig");
 
@@ -35,8 +35,9 @@ pub fn free(self: *Vm) void {
     self.stack.deinit(self.allocator);
 }
 
-pub fn interpret(self: *Vm, source: []u8) InterpretResult {
-    const chunk = Compiler.init(self.allocator).compile(source) catch {
+pub fn interpret(self: *Vm, source: []const u8) InterpretResult {
+    var compiler = Compiler.init(self.allocator);
+    const chunk = compiler.compile(source) catch {
         return InterpretResult.CompileError;
     };
 
@@ -73,19 +74,19 @@ fn peek(self: *Vm) !Value {
     return self.stack.getLastOrNull() orelse error.EmptyStack;
 }
 
-inline fn add(a: Value, b: Value) Value {
+fn add(a: Value, b: Value) Value {
     return a + b;
 }
 
-inline fn sub(a: Value, b: Value) Value {
+fn sub(a: Value, b: Value) Value {
     return a - b;
 }
 
-inline fn mul(a: Value, b: Value) Value {
+fn mul(a: Value, b: Value) Value {
     return a * b;
 }
 
-inline fn div(a: Value, b: Value) Value {
+fn div(a: Value, b: Value) Value {
     return a / b;
 }
 
@@ -104,20 +105,20 @@ pub fn run(self: *Vm) !InterpretResult {
         const inst: Op = @enumFromInt(self.readByte());
 
         switch (inst) {
-            Op.CONST => {
+            Op.Const => {
                 const value = self.readConstant();
                 try self.push(value);
                 printf("\n", .{});
             },
 
-            Op.ADD => try self.binaryOp(add),
-            Op.SUB => try self.binaryOp(sub),
-            Op.MULT => try self.binaryOp(mul),
-            Op.DIV => try self.binaryOp(div),
+            Op.Add => try self.binaryOp(add),
+            Op.Sub => try self.binaryOp(sub),
+            Op.Mult => try self.binaryOp(mul),
+            Op.Div => try self.binaryOp(div),
 
-            Op.NEGATE => try self.push(-try self.pop()),
+            Op.Negate => try self.push(-try self.pop()),
 
-            Op.RETURN => {
+            Op.Return => {
                 Chunk.printValue(try self.pop());
                 printf("\n", .{});
                 return InterpretResult.Ok;

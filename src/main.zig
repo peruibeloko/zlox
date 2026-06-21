@@ -14,35 +14,34 @@ pub fn main(init: std.process.Init) !void {
 
     const args = try init.minimal.args.toSlice(gpa);
 
-    switch (args.len) {
+    _ = switch (args.len) {
         1 => try repl(init.io, &vm),
-        2 => runFile(init.io, gpa, &vm, args[1]),
+        2 => try runFile(init.io, gpa, &vm, args[1]),
         else => {
             std.log.err("Usage: zlox [path]\n", .{});
             std.process.exit(64);
         },
-    }
+    };
 
     vm.free();
 }
 
 fn repl(io: std.Io, vm: *Vm) !void {
-    var line: []const u8 = undefined;
     while (true) {
         try UserIo.write(io, "> ", .{});
-        line = try UserIo.readLine(io);
+        const line = try UserIo.readLine(io);
         if (line.len == 0) {
             try UserIo.write(io, "\n", .{});
             break;
         }
 
-        vm.interpret(line);
+        _ = vm.interpret(line);
     }
 }
 
 fn runFile(io: std.Io, gpa: std.mem.Allocator, vm: *Vm, path: [:0]const u8) !void {
     const source = try UserIo.readFile(io, gpa, path);
-    defer gpa.destroy(source);
+    defer gpa.free(source);
 
     const result = vm.interpret(source);
 

@@ -14,7 +14,15 @@ pub fn readLine(io: Io) ![]const u8 {
 }
 
 pub fn readFile(io: Io, gpa: Allocator, path: []const u8) ![]const u8 {
-    return try Dir.readFileAlloc(Dir.cwd(), io, path, gpa);
+    const file = try Dir.openFile(Dir.cwd(), io, path, .{ .mode = .read_only });
+    const size = try file.length(io);
+
+    const buf = try gpa.alloc(u8, size);
+    var file_reader: Io.File.Reader = .init(file, io, buf);
+    const reader = &file_reader.interface;
+
+    try reader.readSliceAll(buf);
+    return buf;
 }
 
 pub fn write(io: Io, comptime fmt: []const u8, args: anytype) !void {

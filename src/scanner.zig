@@ -5,17 +5,17 @@ const TokenType = @import("token.zig").TokenType;
 
 const Scanner = @This();
 
-start: [*]u8,
-current: [*]u8,
+start: [*]const u8,
+current: [*]const u8,
 line: usize,
 
 pub const empty: Scanner = .{
-    .start = null,
-    .current = null,
+    .start = undefined,
+    .current = undefined,
     .line = 0,
 };
 
-pub fn init(source: []u8) Scanner {
+pub fn init(source: []const u8) Scanner {
     return .{
         .start = source.ptr,
         .current = source.ptr,
@@ -28,8 +28,9 @@ fn isAtEnd(self: *Scanner) bool {
 }
 
 pub fn advance(self: *Scanner) u8 {
+    const prev = self.current[0];
     self.current += 1;
-    return self.current[-1];
+    return prev;
 }
 
 fn match(self: *Scanner, expected: u8) bool {
@@ -79,7 +80,7 @@ fn isAlpha(c: u8) bool {
 fn skipWhitespace(self: *Scanner) void {
     while (true) {
         switch (self.peek()) {
-            ' ', '\r', '\t' => self.advance(),
+            ' ', '\r', '\t' => _ = self.advance(),
             '/' => self.skipComment(),
             else => return,
         }
@@ -89,28 +90,28 @@ fn skipWhitespace(self: *Scanner) void {
 fn skipComment(self: *Scanner) void {
     if (self.peekNext() != '/') return;
     while (self.peek() != '\n' and !self.isAtEnd()) {
-        self.advance();
+        _ = self.advance();
     }
 }
 
 fn string(self: *Scanner) Token {
     while (self.peek() != '"' and !self.isAtEnd()) {
         if (self.peek() == '\n') self.line += 1;
-        self.advance();
+        _ = self.advance();
     }
 
     if (self.isAtEnd()) return self.errorToken("Unterminated string.");
 
-    self.advance();
+    _ = self.advance();
     return self.produce(TokenType.String);
 }
 
 fn number(self: *Scanner) Token {
-    while (isDigit(self.peek())) self.advance();
+    while (isDigit(self.peek())) _ = self.advance();
 
     if (self.peek() == '.' and isDigit(self.peekNext())) {
-        self.advance();
-        while (isDigit(self.peek())) self.advance();
+        _ = self.advance();
+        while (isDigit(self.peek())) _ = self.advance();
     }
 
     return self.produce(TokenType.Number);
@@ -118,7 +119,7 @@ fn number(self: *Scanner) Token {
 
 fn identifier(self: *Scanner) Token {
     const next = self.peek();
-    while (isAlpha(next) or isDigit(next)) self.advance();
+    while (isAlpha(next) or isDigit(next)) _ = self.advance();
     return self.produce(self.identifierType());
 }
 
@@ -133,6 +134,7 @@ fn identifierType(self: *Scanner) TokenType {
                 'a' => return self.checkKeyword(2, 3, "lse", TokenType.False),
                 'o' => return self.checkKeyword(2, 1, "r", TokenType.For),
                 'u' => return self.checkKeyword(2, 1, "n", TokenType.Fun),
+                else => return TokenType.Identifier,
             }
         },
 
@@ -147,13 +149,14 @@ fn identifierType(self: *Scanner) TokenType {
             switch (self.start[1]) {
                 'h' => return self.checkKeyword(2, 2, "is", TokenType.This),
                 'r' => return self.checkKeyword(2, 2, "ue", TokenType.True),
+                else => return TokenType.Identifier,
             }
         },
 
         'v' => return self.checkKeyword(1, 2, "ar", TokenType.Var),
         'w' => return self.checkKeyword(1, 4, "hile", TokenType.While),
+        else => return TokenType.Identifier,
     }
-
     return TokenType.Identifier;
 }
 
@@ -161,13 +164,13 @@ fn checkKeyword(
     self: *Scanner,
     start: usize,
     length: usize,
-    rest: []u8,
+    rest: []const u8,
     token_type: TokenType,
 ) TokenType {
     const right_size = self.current - self.start == start + length;
 
     const right_content = for (start..start + length) |i| {
-        if (self.start[i] != rest[i]) return false;
+        if (self.start[i] != rest[i]) break false;
     } else true;
 
     if (right_size and right_content) return token_type;
@@ -207,10 +210,10 @@ pub fn getToken(self: *Scanner) Token {
 
         '\n' => {
             self.line += 1;
-            self.advance();
+            _ = self.advance();
         },
 
-        else => return,
+        else => return self.produce(TokenType.Error),
     }
 
     return self.errorToken("Unexpected character.");

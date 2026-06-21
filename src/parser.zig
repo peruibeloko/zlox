@@ -11,29 +11,30 @@ had_error: bool,
 panic_mode: bool,
 
 pub const empty: Parser = .{
-    .current = null,
-    .previous = null,
+    .current = .empty,
+    .previous = .empty,
     .had_error = false,
     .panic_mode = false,
 };
 
-pub fn errorAtCurrent(self: *Parser, message: []u8) void {
+pub fn errorAtCurrent(self: *Parser, message: []const u8) void {
     self.errorAt(self.current, message);
 }
 
-pub fn err(self: *Parser, message: []u8) void {
+pub fn err(self: *Parser, message: []const u8) void {
     self.errorAt(self.previous, message);
 }
 
-fn errorAt(self: *Parser, token: Token, message: []u8) void {
+fn errorAt(self: *Parser, token: Token, message: []const u8) void {
     if (self.panic_mode) return;
     self.panic_mode = true;
     std.log.err("[line {d}] Error", .{token.line});
 
     if (token.type == TokenType.Eof) {
-        std.log.err(" at end", .{token.line});
+        std.log.err(" at end", .{});
     } else if (token.type == TokenType.Error) {} else {
-        std.log.err(" at '{s}'", .{token.getString()});
+        var tk = token;
+        std.log.err(" at '{s}'", .{tk.getString()});
     }
 
     std.log.err(": {s}\n", .{message});

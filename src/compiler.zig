@@ -52,36 +52,36 @@ pub fn init(gpa: Allocator) Compiler {
     };
 }
 
-pub fn compile(self: Self, source: []u8) !Chunk {
+pub fn compile(self: Self, source: []const u8) !Chunk {
     self.scanner = Scanner.init(source);
 
     self.parser.had_error = false;
     self.parser.panic_mode = false;
 
-    self.scanner.advance();
+    _ = self.scanner.advance();
 
-    expression();
+    self.expression();
 
-    consume(TokenType.Eof, "Expect end of expression.");
+    self.consume(TokenType.Eof, "Expect end of expression.");
 
-    self.end();
+    try self.end();
     if (self.parser.had_error) return error.CompileError;
 
     return self.currentChunk();
 }
 
 fn advance(self: Self) void {
-    const parser = self.parser;
+    var parser = self.parser;
     parser.previous = parser.current;
 
     while (true) {
         parser.current = self.scanner.getToken();
         if (parser.current.type != TokenType.Error) break;
-        parser.errorAtCurrent(parser.current.start);
+        parser.errorAtCurrent(parser.current.getString());
     }
 }
 
-fn consume(self: Self, token_type: TokenType, message: []u8) void {
+fn consume(self: Self, token_type: TokenType, message: []const u8) void {
     if (self.parser.current.type == token_type) {
         self.advance();
         return;
@@ -90,8 +90,9 @@ fn consume(self: Self, token_type: TokenType, message: []u8) void {
     self.parser.errorAtCurrent(message);
 }
 
-fn emitByte(self: Self, byte: u8) void {
-    self.currentChunk().write(byte, self.parser.previous.line);
+fn emitByte(self: Self, byte: u8) !void {
+    var chunk = self.currentChunk();
+    try chunk.write(byte, self.parser.previous.line);
 }
 
 fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
@@ -99,8 +100,8 @@ fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
     self.emitByte(byte2);
 }
 
-fn emitReturn(self: Self) void {
-    self.emitByte(Op.Return.U8());
+fn emitReturn(self: Self) !void {
+    try self.emitByte(Op.Return.U8());
 }
 
 fn makeConstant(self: Self, value: Value) u8 {
@@ -118,11 +119,12 @@ fn emitConstant(self: Self, value: Value) void {
     self.emitBytes(Op.Const.U8(), self.makeConstant(value));
 }
 
-fn end(self: Self) void {
-    self.emitReturn();
+fn end(self: Self) !void {
+    try self.emitReturn();
 
     if (DEBUG_MODE and !self.parser.had_error) {
-        self.currentChunk().disassemble("code");
+        var chunk = self.currentChunk();
+        chunk.disassemble("code");
     }
 }
 
