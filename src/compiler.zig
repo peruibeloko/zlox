@@ -26,15 +26,27 @@ const Precedence = enum(u8) {
     Unary, // ! -
     Call, // . ()
     Primary,
+
+    pub fn U8(self: Precedence) u8 {
+        return @intFromEnum(self);
+    }
 };
+
+const ParseFn = *const fn (self: Self) void;
 
 const ParseRule = struct {
     prefix: ParseFn,
     infix: ParseFn,
     precedence: Precedence,
-};
 
-const ParseFn = *const fn (self: Self) void;
+    pub fn make(pfx: ParseFn, ifx: ParseFn, prec: Precedence) ParseRule {
+        return .{
+            .prefix = pfx,
+            .infix = ifx,
+            .precedence = prec,
+        };
+    }
+};
 
 parser: Parser,
 scanner: Scanner,
@@ -64,7 +76,7 @@ pub fn compile(self: Self, source: []const u8) !Chunk {
 
     self.consume(TokenType.Eof, "Expect end of expression.");
 
-    try self.end();
+    self.end();
     if (self.parser.had_error) return error.CompileError;
 
     return self.currentChunk();
@@ -90,9 +102,11 @@ fn consume(self: Self, token_type: TokenType, message: []const u8) void {
     self.parser.errorAtCurrent(message);
 }
 
-fn emitByte(self: Self, byte: u8) !void {
+fn emitByte(self: Self, byte: u8) void {
     var chunk = self.currentChunk();
-    try chunk.write(byte, self.parser.previous.line);
+    chunk.write(byte, self.parser.previous.line) catch {
+        return;
+    };
 }
 
 fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
@@ -100,17 +114,22 @@ fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
     self.emitByte(byte2);
 }
 
-fn emitReturn(self: Self) !void {
-    try self.emitByte(Op.Return.U8());
+fn emitReturn(self: Self) void {
+    self.emitByte(Op.Return.U8());
 }
 
 fn makeConstant(self: Self, value: Value) u8 {
-    const constant_index = self.currentChunk().addConstant(value);
+    var chunk = self.currentChunk();
 
-    if (constant_index > 255) {
+    if (chunk.constants.items.len == 256) {
         self.parser.err("Too many constants in one chunk.");
         return 0;
     }
+
+    const constant_index = chunk.addConstant(value) catch {
+        self.parser.err("Out of memory.");
+        return 0;
+    };
 
     return constant_index;
 }
@@ -119,8 +138,8 @@ fn emitConstant(self: Self, value: Value) void {
     self.emitBytes(Op.Const.U8(), self.makeConstant(value));
 }
 
-fn end(self: Self) !void {
-    try self.emitReturn();
+fn end(self: Self) void {
+    self.emitReturn();
 
     if (DEBUG_MODE and !self.parser.had_error) {
         var chunk = self.currentChunk();
@@ -130,14 +149,14 @@ fn end(self: Self) !void {
 
 fn binary(self: Self) void {
     const opType = self.parser.previous.type;
-    const rule = self.getRule(opType);
-    self.parsePrecedence(rule.precedence + 1);
+    const rule = getRule(opType);
+    self.parsePrecedence(@enumFromInt(rule.precedence.U8() + 1));
 
     switch (opType) {
-        TokenType.Plus => self.emitByte(Op.Add),
-        TokenType.Minus => self.emitByte(Op.Sub),
-        TokenType.Star => self.emitByte(Op.Mult),
-        TokenType.Slash => self.emitByte(Op.Div),
+        TokenType.Plus => self.emitByte(Op.Add.U8()),
+        TokenType.Minus => self.emitByte(Op.Sub.U8()),
+        TokenType.Star => self.emitByte(Op.Mult.U8()),
+        TokenType.Slash => self.emitByte(Op.Div.U8()),
         else => return,
     }
 }
@@ -148,7 +167,10 @@ fn grouping(self: Self) void {
 }
 
 fn number(self: Self) void {
-    const double = try std.fmt.parseFloat(f64, self.parser.previous.getString());
+    const double = std.fmt.parseFloat(f64, self.parser.previous.getString()) catch {
+        return;
+    };
+
     self.emitConstant(double);
 }
 
@@ -167,20 +189,24 @@ fn expression(self: Self) void {
     self.parsePrecedence(Precedence.Assignment);
 }
 
+fn noOp(self: Self) void {
+    _ = self;
+}
+
 fn parsePrecedence(self: Self, precedence: Precedence) void {
     self.advance();
-    const prefixRule = getRule(self.parser.previous.type).prefix.*;
+    const prefix_rule = getRule(self.parser.previous.type).prefix;
 
-    if (prefixRule == null) {
+    if (prefix_rule == &noOp) {
         self.parser.err("Expect expression.");
         return;
     }
 
-    prefixRule(self);
+    prefix_rule(self);
 
-    while (precedence <= getRule(self.parser.current.type).precedence) {
+    while (precedence.U8() <= getRule(self.parser.current.type).precedence.U8()) {
         self.advance();
-        const infixRule = getRule(self.parser.previous.type).infix.*;
+        const infixRule = getRule(self.parser.previous.type).infix;
         infixRule(self);
     }
 }
@@ -188,46 +214,46 @@ fn parsePrecedence(self: Self, precedence: Precedence) void {
 fn getRule(token_type: TokenType) ParseRule {
     return switch (token_type) {
         // zig fmt: off
-        .LeftParen    => .{ grouping, null,   .None },
-        .RightParen   => .{ null,     null,   .None },
-        .LeftBrace    => .{ null,     null,   .None },
-        .RightBrace   => .{ null,     null,   .None },
-        .Comma        => .{ null,     null,   .None },
-        .Dot          => .{ null,     null,   .None },
-        .Minus        => .{ unary,    binary, .Term },
-        .Plus         => .{ null,     binary, .Term },
-        .Semicolon    => .{ null,     null,   .None },
-        .Slash        => .{ null,     binary, .Factor },
-        .Star         => .{ null,     binary, .Factor },
-        .Bang         => .{ null,     null,   .None },
-        .BangEqual    => .{ null,     null,   .None },
-        .Equal        => .{ null,     null,   .None },
-        .EqualEqual   => .{ null,     null,   .None },
-        .Greater      => .{ null,     null,   .None },
-        .GreaterEqual => .{ null,     null,   .None },
-        .Less         => .{ null,     null,   .None },
-        .LessEqual    => .{ null,     null,   .None },
-        .Identifier   => .{ null,     null,   .None },
-        .String       => .{ null,     null,   .None },
-        .Number       => .{ number,   null,   .None },
-        .And          => .{ null,     null,   .None },
-        .Class        => .{ null,     null,   .None },
-        .Else         => .{ null,     null,   .None },
-        .False        => .{ null,     null,   .None },
-        .For          => .{ null,     null,   .None },
-        .Fun          => .{ null,     null,   .None },
-        .If           => .{ null,     null,   .None },
-        .Nil          => .{ null,     null,   .None },
-        .Or           => .{ null,     null,   .None },
-        .Print        => .{ null,     null,   .None },
-        .Return       => .{ null,     null,   .None },
-        .Super        => .{ null,     null,   .None },
-        .This         => .{ null,     null,   .None },
-        .True         => .{ null,     null,   .None },
-        .Var          => .{ null,     null,   .None },
-        .While        => .{ null,     null,   .None },
-        .Error        => .{ null,     null,   .None },
-        .Eof          => .{ null,     null,   .None },
+        .LeftParen    => .make(grouping, noOp,   .None),
+        .RightParen   => .make(noOp,     noOp,   .None),
+        .LeftBrace    => .make(noOp,     noOp,   .None),
+        .RightBrace   => .make(noOp,     noOp,   .None),
+        .Comma        => .make(noOp,     noOp,   .None),
+        .Dot          => .make(noOp,     noOp,   .None),
+        .Minus        => .make(unary,    binary, .Term),
+        .Plus         => .make(noOp,     binary, .Term),
+        .Semicolon    => .make(noOp,     noOp,   .None),
+        .Slash        => .make(noOp,     binary, .Factor),
+        .Star         => .make(noOp,     binary, .Factor),
+        .Bang         => .make(noOp,     noOp,   .None),
+        .BangEqual    => .make(noOp,     noOp,   .None),
+        .Equal        => .make(noOp,     noOp,   .None),
+        .EqualEqual   => .make(noOp,     noOp,   .None),
+        .Greater      => .make(noOp,     noOp,   .None),
+        .GreaterEqual => .make(noOp,     noOp,   .None),
+        .Less         => .make(noOp,     noOp,   .None),
+        .LessEqual    => .make(noOp,     noOp,   .None),
+        .Identifier   => .make(noOp,     noOp,   .None),
+        .String       => .make(noOp,     noOp,   .None),
+        .Number       => .make(number,   noOp,   .None),
+        .And          => .make(noOp,     noOp,   .None),
+        .Class        => .make(noOp,     noOp,   .None),
+        .Else         => .make(noOp,     noOp,   .None),
+        .False        => .make(noOp,     noOp,   .None),
+        .For          => .make(noOp,     noOp,   .None),
+        .Fun          => .make(noOp,     noOp,   .None),
+        .If           => .make(noOp,     noOp,   .None),
+        .Nil          => .make(noOp,     noOp,   .None),
+        .Or           => .make(noOp,     noOp,   .None),
+        .Print        => .make(noOp,     noOp,   .None),
+        .Return       => .make(noOp,     noOp,   .None),
+        .Super        => .make(noOp,     noOp,   .None),
+        .This         => .make(noOp,     noOp,   .None),
+        .True         => .make(noOp,     noOp,   .None),
+        .Var          => .make(noOp,     noOp,   .None),
+        .While        => .make(noOp,     noOp,   .None),
+        .Error        => .make(noOp,     noOp,   .None),
+        .Eof          => .make(noOp,     noOp,   .None),
         // zig fmt: on
     };
 }

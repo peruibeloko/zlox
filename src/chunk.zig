@@ -27,7 +27,7 @@ pub fn write(self: *Chunk, byte: u8, line: usize) !void {
     try self.writeLine(line);
 }
 
-pub fn addConstant(self: *Chunk, value: Value) u8 {
+pub fn addConstant(self: *Chunk, value: Value) !u8 {
     try self.constants.append(self.allocator, value);
     return @intCast(self.constants.items.len - 1);
 }
