@@ -3,14 +3,26 @@ const Allocator = std.mem.Allocator;
 const Io = std.Io;
 const Dir = std.Io.Dir;
 
-pub fn readLine(io: Io) ![]const u8 {
+pub fn readLine(io: Io, buffer: *[]const u8) void {
     var stdin_buffer: [1024]u8 = undefined;
     var stdin_file_reader: Io.File.Reader = .init(.stdin(), io, &stdin_buffer);
     const stdin_reader = &stdin_file_reader.interface;
 
-    const raw_line = try stdin_reader.takeDelimiter('\n') orelse unreachable;
-    const line = std.mem.trim(u8, raw_line, "\r");
-    return line;
+    const maybe_line = stdin_reader.takeDelimiter('\n') catch "";
+
+    const raw_line = if (maybe_line) |line| line else "";
+
+    if (raw_line.len == 0) {
+        buffer.* = "";
+        return;
+    }
+
+    buffer.* = if (raw_line[raw_line.len - 1] == '\r')
+        raw_line[0 .. raw_line.len - 1]
+    else
+        raw_line;
+
+    return;
 }
 
 pub fn readFile(io: Io, gpa: Allocator, path: []const u8) ![]const u8 {

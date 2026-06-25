@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const printf = std.log.debug;
 
 pub const DEBUG_MODE = true;
 
@@ -18,7 +17,7 @@ pub const InterpretResult = enum {
 };
 
 allocator: Allocator,
-chunk: Chunk,
+chunk: *Chunk,
 ip: [*]u8,
 stack: std.ArrayList(Value),
 
@@ -35,20 +34,23 @@ pub fn free(self: *Vm) void {
     self.stack.deinit(self.allocator);
 }
 
-pub fn interpret(self: *Vm, source: []const u8) InterpretResult {
-    var compiler = Compiler.init(self.allocator);
-    const chunk = compiler.compile(source) catch {
-        return InterpretResult.CompileError;
+pub fn interpret(self: *Vm, source: [*]const u8) InterpretResult {
+    var compiler = Compiler.init(self.allocator, source) catch {
+        return InterpretResult.RuntimeError;
     };
 
-    self.chunk = chunk;
-    self.ip = self.chunk.code.items.ptr;
+    if (compiler.compile()) |chunk| {
+        self.chunk = chunk;
+        self.ip = self.chunk.code.items.ptr;
+    } else |_| {
+        return InterpretResult.CompileError;
+    }
 
     const result = self.run() catch {
         return InterpretResult.RuntimeError;
     };
 
-    self.free();
+    // self.free();
     return result;
 }
 
@@ -90,7 +92,7 @@ fn div(a: Value, b: Value) Value {
     return a / b;
 }
 
-const BinOp = fn (a: Value, b: Value) Value;
+const BinOp = *const fn (a: Value, b: Value) Value;
 
 fn binaryOp(self: *Vm, op: BinOp) !void {
     const b: Value = try self.pop();
@@ -108,7 +110,7 @@ pub fn run(self: *Vm) !InterpretResult {
             Op.Const => {
                 const value = self.readConstant();
                 try self.push(value);
-                printf("\n", .{});
+                std.log.debug("\n", .{});
             },
 
             Op.Add => try self.binaryOp(add),
@@ -120,7 +122,7 @@ pub fn run(self: *Vm) !InterpretResult {
 
             Op.Return => {
                 Chunk.printValue(try self.pop());
-                printf("\n", .{});
+                std.log.debug("\n", .{});
                 return InterpretResult.Ok;
             },
         }
@@ -128,9 +130,9 @@ pub fn run(self: *Vm) !InterpretResult {
 }
 
 fn showTrace(self: *Vm) void {
-    printf("          ", .{});
-    printf("{any}", .{self.stack.items});
-    printf("\n", .{});
+    std.log.debug("          ", .{});
+    std.log.debug("{any}", .{self.stack.items});
+    std.log.debug("\n", .{});
 
     // end address - start address = position offset
     // remember, pointers are just addresses, and addresses are just numbers

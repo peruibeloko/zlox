@@ -10,12 +10,14 @@ previous: Token,
 had_error: bool,
 panic_mode: bool,
 
-pub const empty: Parser = .{
-    .current = .empty,
-    .previous = .empty,
-    .had_error = false,
-    .panic_mode = false,
-};
+pub fn init() Parser {
+    return .{
+        .current = .empty,
+        .previous = .empty,
+        .had_error = false,
+        .panic_mode = false,
+    };
+}
 
 pub fn errorAtCurrent(self: *Parser, message: []const u8) void {
     self.errorAt(self.current, message);

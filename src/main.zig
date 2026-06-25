@@ -29,13 +29,30 @@ pub fn main(init: std.process.Init) !void {
 fn repl(io: std.Io, vm: *Vm) !void {
     while (true) {
         try UserIo.write(io, "> ", .{});
-        const line = try UserIo.readLine(io);
+
+        var line: []const u8 = "undefined";
+
+        var stdin_buffer: [1024]u8 = undefined;
+        var stdin_file_reader: std.Io.File.Reader = .init(.stdin(), io, &stdin_buffer);
+        const stdin_reader = &stdin_file_reader.interface;
+
+        const maybe_line = stdin_reader.takeDelimiter('\n') catch "";
+
+        const raw_line = if (maybe_line) |s| s else "";
+
+        if (raw_line.len == 0) line = "";
+
+        line = if (raw_line[raw_line.len - 1] == '\r')
+            raw_line[0 .. raw_line.len - 1]
+        else
+            raw_line;
+
         if (line.len == 0) {
             try UserIo.write(io, "\n", .{});
-            break;
+            return;
         }
 
-        _ = vm.interpret(line);
+        _ = vm.interpret(line.ptr);
     }
 }
 
@@ -43,7 +60,7 @@ fn runFile(io: std.Io, gpa: std.mem.Allocator, vm: *Vm, path: [:0]const u8) !voi
     const source = try UserIo.readFile(io, gpa, path);
     defer gpa.free(source);
 
-    const result = vm.interpret(source);
+    const result = vm.interpret(source.ptr);
 
     if (result == Vm.InterpretResult.CompileError) std.process.exit(65);
     if (result == Vm.InterpretResult.RuntimeError) std.process.exit(70);

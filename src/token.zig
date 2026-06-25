@@ -57,7 +57,7 @@ length: usize,
 line: usize,
 
 pub const empty: Token = .{
-    .type = undefined,
+    .type = .Eof,
     .start = undefined,
     .length = 0,
     .line = 0,

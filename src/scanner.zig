@@ -9,16 +9,10 @@ start: [*]const u8,
 current: [*]const u8,
 line: usize,
 
-pub const empty: Scanner = .{
-    .start = undefined,
-    .current = undefined,
-    .line = 0,
-};
-
-pub fn init(source: []const u8) Scanner {
+pub fn init(source: [*]const u8) Scanner {
     return .{
-        .start = source.ptr,
-        .current = source.ptr,
+        .start = source,
+        .current = source,
         .line = 1,
     };
 }
@@ -82,6 +76,10 @@ fn skipWhitespace(self: *Scanner) void {
         switch (self.peek()) {
             ' ', '\r', '\t' => _ = self.advance(),
             '/' => self.skipComment(),
+            '\n' => {
+                self.line += 1;
+                _ = self.advance();
+            },
             else => return,
         }
     }
@@ -124,40 +122,37 @@ fn identifier(self: *Scanner) Token {
 }
 
 fn identifierType(self: *Scanner) TokenType {
-    switch (self.start[0]) {
-        'a' => return self.checkKeyword(1, 2, "nd", TokenType.And),
-        'c' => return self.checkKeyword(1, 4, "lass", TokenType.Class),
-        'e' => return self.checkKeyword(1, 3, "lse", TokenType.Else),
+    if (self.current - self.start == 1) return TokenType.Identifier;
 
-        'f' => if (self.current - self.start > 1) {
-            switch (self.start[1]) {
-                'a' => return self.checkKeyword(2, 3, "lse", TokenType.False),
-                'o' => return self.checkKeyword(2, 1, "r", TokenType.For),
-                'u' => return self.checkKeyword(2, 1, "n", TokenType.Fun),
-                else => return TokenType.Identifier,
-            }
+    return switch (self.start[0]) {
+        'a' => self.checkKeyword(1, 2, "nd", TokenType.And),
+        'c' => self.checkKeyword(1, 4, "lass", TokenType.Class),
+        'e' => self.checkKeyword(1, 3, "lse", TokenType.Else),
+
+        'f' => switch (self.start[1]) {
+            'a' => self.checkKeyword(2, 3, "lse", TokenType.False),
+            'o' => self.checkKeyword(2, 1, "r", TokenType.For),
+            'u' => self.checkKeyword(2, 1, "n", TokenType.Fun),
+            else => TokenType.Identifier,
         },
 
-        'i' => return self.checkKeyword(1, 1, "f", TokenType.If),
-        'n' => return self.checkKeyword(1, 2, "il", TokenType.Nil),
-        'o' => return self.checkKeyword(1, 1, "r", TokenType.Or),
-        'p' => return self.checkKeyword(1, 4, "rint", TokenType.Print),
-        'r' => return self.checkKeyword(1, 5, "eturn", TokenType.Return),
-        's' => return self.checkKeyword(1, 4, "uper", TokenType.Super),
+        'i' => self.checkKeyword(1, 1, "f", TokenType.If),
+        'n' => self.checkKeyword(1, 2, "il", TokenType.Nil),
+        'o' => self.checkKeyword(1, 1, "r", TokenType.Or),
+        'p' => self.checkKeyword(1, 4, "rint", TokenType.Print),
+        'r' => self.checkKeyword(1, 5, "eturn", TokenType.Return),
+        's' => self.checkKeyword(1, 4, "uper", TokenType.Super),
 
-        't' => if (self.current - self.start > 1) {
-            switch (self.start[1]) {
-                'h' => return self.checkKeyword(2, 2, "is", TokenType.This),
-                'r' => return self.checkKeyword(2, 2, "ue", TokenType.True),
-                else => return TokenType.Identifier,
-            }
+        't' => switch (self.start[1]) {
+            'h' => self.checkKeyword(2, 2, "is", TokenType.This),
+            'r' => self.checkKeyword(2, 2, "ue", TokenType.True),
+            else => TokenType.Identifier,
         },
 
-        'v' => return self.checkKeyword(1, 2, "ar", TokenType.Var),
-        'w' => return self.checkKeyword(1, 4, "hile", TokenType.While),
-        else => return TokenType.Identifier,
-    }
-    return TokenType.Identifier;
+        'v' => self.checkKeyword(1, 2, "ar", TokenType.Var),
+        'w' => self.checkKeyword(1, 4, "hile", TokenType.While),
+        else => TokenType.Identifier,
+    };
 }
 
 fn checkKeyword(
@@ -181,40 +176,33 @@ pub fn getToken(self: *Scanner) Token {
     self.skipWhitespace();
     self.start = self.current;
 
-    if (!self.isAtEnd()) return self.produce(TokenType.Eof);
+    if (self.isAtEnd()) return self.produce(TokenType.Eof);
 
     const c = self.advance();
 
     if (isAlpha(c)) return self.identifier();
     if (isDigit(c)) return self.number();
 
-    switch (c) {
-        '(' => return self.produce(TokenType.LeftParen),
-        ')' => return self.produce(TokenType.RightParen),
-        '{' => return self.produce(TokenType.LeftBrace),
-        '}' => return self.produce(TokenType.RightBrace),
-        ';' => return self.produce(TokenType.Semicolon),
-        ',' => return self.produce(TokenType.Comma),
-        '.' => return self.produce(TokenType.Dot),
-        '-' => return self.produce(TokenType.Minus),
-        '+' => return self.produce(TokenType.Plus),
-        '/' => return self.produce(TokenType.Slash),
-        '*' => return self.produce(TokenType.Star),
+    return switch (c) {
+        '(' => self.produce(TokenType.LeftParen),
+        ')' => self.produce(TokenType.RightParen),
+        '{' => self.produce(TokenType.LeftBrace),
+        '}' => self.produce(TokenType.RightBrace),
+        ';' => self.produce(TokenType.Semicolon),
+        ',' => self.produce(TokenType.Comma),
+        '.' => self.produce(TokenType.Dot),
+        '-' => self.produce(TokenType.Minus),
+        '+' => self.produce(TokenType.Plus),
+        '/' => self.produce(TokenType.Slash),
+        '*' => self.produce(TokenType.Star),
 
-        '!' => return self.produce(if (self.match('=')) TokenType.BangEqual else TokenType.Bang),
-        '=' => return self.produce(if (self.match('=')) TokenType.EqualEqual else TokenType.Equal),
-        '<' => return self.produce(if (self.match('=')) TokenType.LessEqual else TokenType.Less),
-        '>' => return self.produce(if (self.match('=')) TokenType.GreaterEqual else TokenType.Greater),
+        '!' => self.produce(if (self.match('=')) TokenType.BangEqual else TokenType.Bang),
+        '=' => self.produce(if (self.match('=')) TokenType.EqualEqual else TokenType.Equal),
+        '<' => self.produce(if (self.match('=')) TokenType.LessEqual else TokenType.Less),
+        '>' => self.produce(if (self.match('=')) TokenType.GreaterEqual else TokenType.Greater),
 
-        '"' => return self.string(),
+        '"' => self.string(),
 
-        '\n' => {
-            self.line += 1;
-            _ = self.advance();
-        },
-
-        else => return self.produce(TokenType.Error),
-    }
-
-    return self.errorToken("Unexpected character.");
+        else => self.errorToken("Unexpected character."),
+    };
 }

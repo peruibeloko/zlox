@@ -50,27 +50,26 @@ const ParseRule = struct {
 
 parser: Parser,
 scanner: Scanner,
-compilingChunk: Chunk,
+compilingChunk: *Chunk,
 
-fn currentChunk(self: Self) Chunk {
+fn currentChunk(self: Self) *Chunk {
     return self.compilingChunk;
 }
 
-pub fn init(gpa: Allocator) Compiler {
+pub fn init(gpa: Allocator, source: [*]const u8) !Compiler {
+    var chunk = Chunk.init(gpa);
     return .{
-        .parser = .empty,
-        .scanner = .empty,
-        .compilingChunk = Chunk.init(gpa),
+        .parser = Parser.init(),
+        .scanner = Scanner.init(source),
+        .compilingChunk = &chunk,
     };
 }
 
-pub fn compile(self: Self, source: []const u8) !Chunk {
-    self.scanner = Scanner.init(source);
-
+pub fn compile(self: Self) !*Chunk {
     self.parser.had_error = false;
     self.parser.panic_mode = false;
 
-    _ = self.scanner.advance();
+    _ = self.advance();
 
     self.expression();
 
@@ -83,13 +82,12 @@ pub fn compile(self: Self, source: []const u8) !Chunk {
 }
 
 fn advance(self: Self) void {
-    var parser = self.parser;
-    parser.previous = parser.current;
+    self.parser.previous = self.parser.current;
 
     while (true) {
-        parser.current = self.scanner.getToken();
-        if (parser.current.type != TokenType.Error) break;
-        parser.errorAtCurrent(parser.current.getString());
+        self.parser.current = self.scanner.getToken();
+        if (self.parser.current.type != TokenType.Error) break;
+        self.parser.errorAtCurrent(self.parser.current.getString());
     }
 }
 
@@ -195,6 +193,8 @@ fn noOp(self: Self) void {
 
 fn parsePrecedence(self: Self, precedence: Precedence) void {
     self.advance();
+    std.log.debug("parser state {any}", .{self.parser});
+
     const prefix_rule = getRule(self.parser.previous.type).prefix;
 
     if (prefix_rule == &noOp) {
@@ -204,7 +204,12 @@ fn parsePrecedence(self: Self, precedence: Precedence) void {
 
     prefix_rule(self);
 
-    while (precedence.U8() <= getRule(self.parser.current.type).precedence.U8()) {
+    const next_prec = precedence.U8();
+    const rule_prec = getRule(self.parser.current.type).precedence.U8();
+
+    std.log.debug("{any} <= {any}", .{ next_prec, rule_prec });
+
+    while (next_prec <= rule_prec) {
         self.advance();
         const infixRule = getRule(self.parser.previous.type).infix;
         infixRule(self);
