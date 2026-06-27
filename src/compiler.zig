@@ -67,7 +67,7 @@ pub fn compile(self: Self) bool {
     self.parser.had_error = false;
     self.parser.panic_mode = false;
 
-    _ = self.advance();
+    self.advance();
 
     self.expression();
 
@@ -191,24 +191,22 @@ fn noOp(self: Self) void {
 fn parsePrecedence(self: Self, precedence: Precedence) void {
     self.advance();
 
-    std.log.debug("parser state {any}", .{self.parser});
+    const prefix = getRule(self.parser.previous.type).prefix;
 
-    const prefix_rule = getRule(self.parser.previous.type).prefix;
-
-    if (prefix_rule == &noOp) {
+    if (prefix == &noOp) {
         self.parser.err("Expect expression.");
         return;
     }
 
-    prefix_rule(self);
+    prefix(self);
 
     const next_prec = precedence.U8();
     const rule_prec = getRule(self.parser.current.type).precedence.U8();
 
-    while (next_prec <= rule_prec) {
+    while (next_prec <= rule_prec and self.parser.current.type != TokenType.Eof) {
         self.advance();
-        const infixRule = getRule(self.parser.previous.type).infix;
-        infixRule(self);
+        const infix = getRule(self.parser.previous.type).infix;
+        infix(self);
     }
 }
 

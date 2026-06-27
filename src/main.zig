@@ -40,14 +40,9 @@ fn repl(io: std.Io, vm: *Vm) !void {
 
         const raw_line = if (maybe_line) |s| s else "";
 
-        if (raw_line.len == 0) line = "";
+        line = std.mem.trimEnd(u8, raw_line, "\r");
 
-        line = if (raw_line[raw_line.len - 1] == '\r')
-            raw_line[0 .. raw_line.len - 1]
-        else
-            raw_line;
-
-        if (line.len == 0) {
+        if (line.len == 1) {
             try UserIo.write(io, "\n", .{});
             return;
         }

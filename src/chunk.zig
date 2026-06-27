@@ -66,7 +66,7 @@ fn getLine(self: *Chunk, inst_index: usize) usize {
 }
 
 pub fn disassemble(self: *Chunk, name: String) void {
-    std.log.debug("== {s} ==\n", .{name});
+    std.debug.print("== {s} ==\n", .{name});
 
     var inst_offset: usize = 0;
     while (inst_offset < self.code.items.len) {
@@ -76,12 +76,12 @@ pub fn disassemble(self: *Chunk, name: String) void {
 
 pub fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
     const line = self.getLine(inst_offset);
-    std.log.debug("{d:04} ", .{inst_offset});
+    std.debug.print("{d:04} ", .{inst_offset});
 
     if (inst_offset > 0 and line == self.getLine(inst_offset - 1)) {
-        std.log.debug("   | ", .{});
+        std.debug.print("   | ", .{});
     } else {
-        std.log.debug("{d:04} ", .{line});
+        std.debug.print("{d:04} ", .{line});
     }
 
     const inst: Op = @enumFromInt(self.code.items[inst_offset]);
@@ -99,17 +99,17 @@ pub fn disassembleInst(self: *Chunk, inst_offset: usize) usize {
 
 fn constantInst(self: *Chunk, name: String, inst_offset: usize) usize {
     const const_offset = self.code.items[inst_offset + 1];
-    std.log.debug("{s:<16} {d:04} '", .{ name, const_offset });
+    std.debug.print("{s:<16} {d:04} '", .{ name, const_offset });
     printValue(self.constants.items[const_offset]);
-    std.log.debug("'\n", .{});
+    std.debug.print("'\n", .{});
     return inst_offset + 2;
 }
 
 fn simpleInst(name: String, inst_offset: usize) usize {
-    std.log.debug("{s}\n", .{name});
+    std.debug.print("{s}\n", .{name});
     return inst_offset + 1;
 }
 
 pub fn printValue(value: Value) void {
-    std.log.debug("{any}", .{value});
+    std.debug.print("{any}", .{value});
 }

@@ -108,7 +108,7 @@ pub fn run(self: *Vm) !InterpretResult {
             Op.Const => {
                 const value = self.readConstant();
                 try self.push(value);
-                std.log.debug("\n", .{});
+                std.debug.print("\n", .{});
             },
 
             Op.Add => try self.binaryOp(add),
@@ -120,7 +120,7 @@ pub fn run(self: *Vm) !InterpretResult {
 
             Op.Return => {
                 Chunk.printValue(try self.pop());
-                std.log.debug("\n", .{});
+                std.debug.print("\n", .{});
                 return InterpretResult.Ok;
             },
         }
@@ -128,9 +128,9 @@ pub fn run(self: *Vm) !InterpretResult {
 }
 
 fn showTrace(self: *Vm) void {
-    std.log.debug("          ", .{});
-    std.log.debug("{any}", .{self.stack.items});
-    std.log.debug("\n", .{});
+    std.debug.print("          ", .{});
+    std.debug.print("{any}", .{self.stack.items});
+    std.debug.print("\n", .{});
 
     // end address - start address = position offset
     // remember, pointers are just addresses, and addresses are just numbers

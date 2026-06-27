@@ -5,55 +5,54 @@ const TokenType = @import("token.zig").TokenType;
 
 const Scanner = @This();
 
-slice: []const u8,
+end_addr: [*]const u8,
+start: [*]const u8,
+current: [*]const u8,
 line: usize,
 
 pub fn init(source: []const u8) Scanner {
     return .{
-        .slice = source[0..1],
+        .end_addr = source.ptr + source.len,
+        .start = source.ptr,
+        .current = source.ptr,
         .line = 1,
     };
 }
 
-fn lastChar(self: *Scanner) u8 {
-    return self.slice[self.slice.len - 1];
+fn makeSlice(self: *Scanner) []const u8 {
+    return self.start[0 .. self.current - self.start];
 }
 
 fn isAtEnd(self: *Scanner) bool {
-    return self.lastChar() == 0;
+    return self.current == self.end_addr;
 }
 
-pub fn advance(self: *Scanner) u8 {
-    self.slice.len += 1;
-    return self.lastChar();
+fn advance(self: *Scanner) u8 {
+    const c = self.current[0];
+    self.current += 1;
+    return c;
 }
 
 fn match(self: *Scanner, expected: u8) bool {
     if (self.isAtEnd()) return false;
-    if (self.lastChar() != expected) return false;
-    self.slice.len += 1;
+    if (self.current[0] != expected) return false;
+    self.current += 1;
     return true;
 }
 
 fn peek(self: *Scanner) u8 {
-    self.slice.ptr += 1;
-    const next = self.lastChar();
-    self.slice.ptr -= 1;
-    return next;
+    return self.current[0];
 }
 
 fn peekNext(self: *Scanner) u8 {
     if (self.isAtEnd()) return 0;
-    self.slice.ptr += 2;
-    const next = self.lastChar();
-    self.slice.ptr -= 2;
-    return next;
+    return self.current[1];
 }
 
 fn produce(self: *Scanner, token_type: TokenType) Token {
     return .{
         .type = token_type,
-        .slice = self.slice,
+        .slice = self.makeSlice(),
         .line = self.line,
     };
 }
@@ -67,16 +66,15 @@ fn errorToken(self: *Scanner, message: []const u8) Token {
 }
 
 fn isDigit(c: u8) bool {
-    return c >= '0' and c <= '9';
+    return std.ascii.isDigit(c);
 }
 
 fn isAlpha(c: u8) bool {
-    return (c >= 'a' and c <= 'z') or
-        (c >= 'A' and c <= 'Z') or
-        c == '_';
+    return std.ascii.isAlphabetic(c) or c == '_';
 }
 
 fn skipWhitespace(self: *Scanner) void {
+    if (self.isAtEnd()) return;
     while (true) {
         switch (self.peek()) {
             ' ', '\r', '\t' => _ = self.advance(),
@@ -110,11 +108,11 @@ fn string(self: *Scanner) Token {
 }
 
 fn number(self: *Scanner) Token {
-    while (isDigit(self.peek())) _ = self.advance();
+    while (isDigit(self.peek()) and !self.isAtEnd()) _ = self.advance();
 
     if (self.peek() == '.' and isDigit(self.peekNext())) {
         _ = self.advance();
-        while (isDigit(self.peek())) _ = self.advance();
+        while (isDigit(self.peek()) and !self.isAtEnd()) _ = self.advance();
     }
 
     return self.produce(TokenType.Number);
@@ -127,14 +125,12 @@ fn identifier(self: *Scanner) Token {
 }
 
 fn identifierType(self: *Scanner) TokenType {
-    if (self.slice.len == 1) return TokenType.Identifier;
-
-    return switch (self.slice[0]) {
+    return switch (self.start[0]) {
         'a' => self.checkKeyword(1, 2, "nd", TokenType.And),
         'c' => self.checkKeyword(1, 4, "lass", TokenType.Class),
         'e' => self.checkKeyword(1, 3, "lse", TokenType.Else),
 
-        'f' => switch (self.slice[1]) {
+        'f' => switch (self.start[1]) {
             'a' => self.checkKeyword(2, 3, "lse", TokenType.False),
             'o' => self.checkKeyword(2, 1, "r", TokenType.For),
             'u' => self.checkKeyword(2, 1, "n", TokenType.Fun),
@@ -148,7 +144,7 @@ fn identifierType(self: *Scanner) TokenType {
         'r' => self.checkKeyword(1, 5, "eturn", TokenType.Return),
         's' => self.checkKeyword(1, 4, "uper", TokenType.Super),
 
-        't' => switch (self.slice[1]) {
+        't' => switch (self.start[1]) {
             'h' => self.checkKeyword(2, 2, "is", TokenType.This),
             'r' => self.checkKeyword(2, 2, "ue", TokenType.True),
             else => TokenType.Identifier,
@@ -167,15 +163,14 @@ fn checkKeyword(
     rest: []const u8,
     token_type: TokenType,
 ) TokenType {
-    if (std.mem.eql(u8, self.slice[start..length], rest)) return token_type;
+    if (std.mem.eql(u8, self.start[start .. start + length], rest)) return token_type;
     return TokenType.Identifier;
 }
 
 pub fn getToken(self: *Scanner) Token {
     self.skipWhitespace();
 
-    self.slice.ptr += self.slice.len;
-    self.slice.len = 1;
+    self.start = self.current;
 
     if (self.isAtEnd()) return self.produce(TokenType.Eof);
 
@@ -204,6 +199,8 @@ pub fn getToken(self: *Scanner) Token {
 
         '"' => self.string(),
 
-        else => self.errorToken("Unexpected character."),
+        else => {
+            return self.errorToken("Unexpected character.");
+        },
     };
 }
