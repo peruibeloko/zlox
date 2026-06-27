@@ -34,23 +34,21 @@ pub fn free(self: *Vm) void {
     self.stack.deinit(self.allocator);
 }
 
-pub fn interpret(self: *Vm, source: [*]const u8) InterpretResult {
-    var compiler = Compiler.init(self.allocator, source) catch {
+pub fn interpret(self: *Vm, source: []const u8) InterpretResult {
+    var chunk = Chunk.init(self.allocator);
+    defer chunk.free();
+
+    var compiler = Compiler.init(source, &chunk) catch {
         return InterpretResult.RuntimeError;
     };
 
-    if (compiler.compile()) |chunk| {
-        self.chunk = chunk;
-        self.ip = self.chunk.code.items.ptr;
-    } else |_| {
-        return InterpretResult.CompileError;
-    }
+    if (!compiler.compile()) return InterpretResult.CompileError;
 
-    const result = self.run() catch {
-        return InterpretResult.RuntimeError;
-    };
+    self.chunk = &chunk;
+    self.ip = self.chunk.code.items.ptr;
 
-    // self.free();
+    const result = self.run() catch InterpretResult.RuntimeError;
+
     return result;
 }
 

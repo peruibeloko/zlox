@@ -52,7 +52,7 @@ fn repl(io: std.Io, vm: *Vm) !void {
             return;
         }
 
-        _ = vm.interpret(line.ptr);
+        _ = vm.interpret(line);
     }
 }
 
@@ -60,7 +60,7 @@ fn runFile(io: std.Io, gpa: std.mem.Allocator, vm: *Vm, path: [:0]const u8) !voi
     const source = try UserIo.readFile(io, gpa, path);
     defer gpa.free(source);
 
-    const result = vm.interpret(source.ptr);
+    const result = vm.interpret(source);
 
     if (result == Vm.InterpretResult.CompileError) std.process.exit(65);
     if (result == Vm.InterpretResult.RuntimeError) std.process.exit(70);

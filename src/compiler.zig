@@ -1,5 +1,4 @@
 const std = @import("std");
-const printf = std.log.debug;
 const Allocator = std.mem.Allocator;
 
 const Scanner = @import("scanner.zig");
@@ -56,16 +55,15 @@ fn currentChunk(self: Self) *Chunk {
     return self.compilingChunk;
 }
 
-pub fn init(gpa: Allocator, source: [*]const u8) !Compiler {
-    var chunk = Chunk.init(gpa);
+pub fn init(source: []const u8, chunk: *Chunk) !Compiler {
     return .{
         .parser = Parser.init(),
         .scanner = Scanner.init(source),
-        .compilingChunk = &chunk,
+        .compilingChunk = chunk,
     };
 }
 
-pub fn compile(self: Self) !*Chunk {
+pub fn compile(self: Self) bool {
     self.parser.had_error = false;
     self.parser.panic_mode = false;
 
@@ -76,9 +74,8 @@ pub fn compile(self: Self) !*Chunk {
     self.consume(TokenType.Eof, "Expect end of expression.");
 
     self.end();
-    if (self.parser.had_error) return error.CompileError;
 
-    return self.currentChunk();
+    return !self.parser.had_error;
 }
 
 fn advance(self: Self) void {
@@ -193,6 +190,7 @@ fn noOp(self: Self) void {
 
 fn parsePrecedence(self: Self, precedence: Precedence) void {
     self.advance();
+
     std.log.debug("parser state {any}", .{self.parser});
 
     const prefix_rule = getRule(self.parser.previous.type).prefix;
@@ -206,8 +204,6 @@ fn parsePrecedence(self: Self, precedence: Precedence) void {
 
     const next_prec = precedence.U8();
     const rule_prec = getRule(self.parser.current.type).precedence.U8();
-
-    std.log.debug("{any} <= {any}", .{ next_prec, rule_prec });
 
     while (next_prec <= rule_prec) {
         self.advance();

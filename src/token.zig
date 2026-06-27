@@ -52,17 +52,15 @@ pub const TokenType = enum(u8) {
 const Token = @This();
 
 type: TokenType,
-start: [*]const u8,
-length: usize,
+slice: []const u8,
 line: usize,
 
 pub const empty: Token = .{
     .type = .Eof,
-    .start = undefined,
-    .length = 0,
+    .slice = undefined,
     .line = 0,
 };
 
 pub fn getString(self: *Token) []const u8 {
-    return self.start[0..self.length];
+    return self.slice[0..];
 }
