@@ -30,8 +30,6 @@ fn repl(io: std.Io, vm: *Vm) !void {
     while (true) {
         try UserIo.write(io, "> ", .{});
 
-        var line: []const u8 = "undefined";
-
         var stdin_buffer: [1024]u8 = undefined;
         var stdin_file_reader: std.Io.File.Reader = .init(.stdin(), io, &stdin_buffer);
         const stdin_reader = &stdin_file_reader.interface;
@@ -40,11 +38,13 @@ fn repl(io: std.Io, vm: *Vm) !void {
 
         const raw_line = if (maybe_line) |s| s else "";
 
-        line = std.mem.trimEnd(u8, raw_line, "\r");
+        // isso só retorna um slice que não contém o \r
+        // não necessariamente remove ele da memória
+        const line = std.mem.trimEnd(u8, raw_line, "\r");
 
-        if (line.len == 1) {
+        if (line.len == 0) {
             try UserIo.write(io, "\n", .{});
-            return;
+            continue;
         }
 
         _ = vm.interpret(line);

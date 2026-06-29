@@ -193,6 +193,8 @@ fn parsePrecedence(self: Self, precedence: Precedence) void {
 
     const prefix = getRule(self.parser.previous.type).prefix;
 
+    std.log.debug("parser {any}", .{self.parser});
+
     if (prefix == &noOp) {
         self.parser.err("Expect expression.");
         return;

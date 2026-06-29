@@ -87,6 +87,7 @@ fn mul(a: Value, b: Value) Value {
 }
 
 fn div(a: Value, b: Value) Value {
+    std.log.debug("{d} {d}", .{ a, b });
     return a / b;
 }
 
