@@ -61,6 +61,6 @@ pub const empty: Token = .{
     .line = 0,
 };
 
-pub fn getString(self: *Token) []const u8 {
+pub fn getString(self: Token) []const u8 {
     return self.slice[0..];
 }

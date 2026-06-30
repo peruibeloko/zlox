@@ -21,13 +21,18 @@ pub fn init(gpa: Allocator) Chunk {
     };
 }
 
-pub fn write(self: *Chunk, byte: u8, line: usize) !void {
-    try self.code.append(self.allocator, byte);
-    try self.writeLine(line);
+fn panic() void {
+    std.log.err("Out of memory.", .{});
+    std.process.exit(1);
 }
 
-pub fn addConstant(self: *Chunk, value: Value) !u8 {
-    try self.constants.append(self.allocator, value);
+pub fn write(self: *Chunk, byte: u8, line: usize) void {
+    self.code.append(self.allocator, byte) catch panic();
+    self.writeLine(line);
+}
+
+pub fn addConstant(self: *Chunk, value: Value) u8 {
+    self.constants.append(self.allocator, value) catch panic();
     return @intCast(self.constants.items.len - 1);
 }
 
@@ -39,11 +44,11 @@ pub fn free(self: *Chunk) void {
 
 // debugging
 
-fn writeLine(self: *Chunk, line: usize) !void {
+fn writeLine(self: *Chunk, line: usize) void {
     if (self.lines.get(line)) |count| {
-        try self.lines.put(self.allocator, line, count + 1);
+        self.lines.put(self.allocator, line, count + 1) catch std.process.exit(1);
     } else {
-        try self.lines.put(self.allocator, line, 1);
+        self.lines.put(self.allocator, line, 1) catch std.process.exit(1);
     }
 }
 

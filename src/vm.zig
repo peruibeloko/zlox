@@ -38,9 +38,7 @@ pub fn interpret(self: *Vm, source: []const u8) InterpretResult {
     var chunk = Chunk.init(self.allocator);
     defer chunk.free();
 
-    var compiler = Compiler.init(source, &chunk) catch {
-        return InterpretResult.RuntimeError;
-    };
+    var compiler = Compiler.init(source, &chunk);
 
     if (!compiler.compile()) return InterpretResult.CompileError;
 

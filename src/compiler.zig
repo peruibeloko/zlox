@@ -14,17 +14,19 @@ const Compiler = @This();
 const Self = *Compiler;
 
 const Precedence = enum(u8) {
+    // zig fmt: off
     None,
     Assignment, // =
-    Or, // or
-    And, // and
-    Equality, // == !=
+    Or,         // or
+    And,        // and
+    Equality,   // == !=
     Comparison, // < > <= >=
-    Term, // + -
-    Factor, // * /
-    Unary, // ! -
-    Call, // . ()
+    Term,       // + -
+    Factor,     // / *
+    Unary,      // - !
+    Call,       // . ()
     Primary,
+    // zig fmt: on
 
     pub fn U8(self: Precedence) u8 {
         return @intFromEnum(self);
@@ -36,118 +38,84 @@ const ParseFn = *const fn (self: Self) void;
 const ParseRule = struct {
     prefix: ParseFn,
     infix: ParseFn,
-    precedence: Precedence,
+    precedence: u8,
 
     pub fn make(pfx: ParseFn, ifx: ParseFn, prec: Precedence) ParseRule {
         return .{
             .prefix = pfx,
             .infix = ifx,
-            .precedence = prec,
+            .precedence = prec.U8(),
         };
     }
 };
 
 parser: Parser,
-scanner: Scanner,
 compilingChunk: *Chunk,
 
 fn currentChunk(self: Self) *Chunk {
     return self.compilingChunk;
 }
 
-pub fn init(source: []const u8, chunk: *Chunk) !Compiler {
+pub fn init(source: []const u8, chunk: *Chunk) Compiler {
     return .{
-        .parser = Parser.init(),
-        .scanner = Scanner.init(source),
+        .parser = Parser.init(source),
         .compilingChunk = chunk,
     };
 }
 
 pub fn compile(self: Self) bool {
-    self.parser.had_error = false;
-    self.parser.panic_mode = false;
-
-    self.advance();
-
+    self.parser.advance();
     self.expression();
-
-    self.consume(TokenType.Eof, "Expect end of expression.");
-
+    self.parser.consume(TokenType.Eof, "Expect end of expression.");
     self.end();
-
     return !self.parser.had_error;
 }
 
-fn advance(self: Self) void {
-    self.parser.previous = self.parser.current;
-
-    while (true) {
-        self.parser.current = self.scanner.getToken();
-        if (self.parser.current.type != TokenType.Error) break;
-        self.parser.errorAtCurrent(self.parser.current.getString());
-    }
-}
-
-fn consume(self: Self, token_type: TokenType, message: []const u8) void {
-    if (self.parser.current.type == token_type) {
-        self.advance();
-        return;
-    }
-
-    self.parser.errorAtCurrent(message);
-}
-
-fn emitByte(self: Self, byte: u8) void {
+fn emitByte(self: *Compiler, byte: u8) void {
     var chunk = self.currentChunk();
-    chunk.write(byte, self.parser.previous.line) catch {
-        return;
-    };
+    chunk.write(byte, self.parser.previous.line);
 }
 
-fn emitBytes(self: Self, byte1: u8, byte2: u8) void {
-    self.emitByte(byte1);
-    self.emitByte(byte2);
+fn emitBytes(self: *Compiler, byte1: u8, byte2: u8) void {
+    var chunk = self.currentChunk();
+    chunk.write(byte1, self.parser.previous.line);
+    chunk.write(byte2, self.parser.previous.line);
 }
 
-fn emitReturn(self: Self) void {
+fn emitReturn(self: *Compiler) void {
     self.emitByte(Op.Return.U8());
 }
 
-fn makeConstant(self: Self, value: Value) u8 {
+fn makeConstant(self: *Compiler, value: Value) u8 {
     var chunk = self.currentChunk();
-
-    if (chunk.constants.items.len == 256) {
+    const offset = chunk.addConstant(value);
+    if (offset > 255) {
         self.parser.err("Too many constants in one chunk.");
         return 0;
     }
 
-    const constant_index = chunk.addConstant(value) catch {
-        self.parser.err("Out of memory.");
-        return 0;
-    };
-
-    return constant_index;
+    return offset;
 }
 
-fn emitConstant(self: Self, value: Value) void {
+fn emitConstant(self: *Compiler, value: Value) void {
     self.emitBytes(Op.Const.U8(), self.makeConstant(value));
 }
 
-fn end(self: Self) void {
+fn end(self: *Compiler) void {
     self.emitReturn();
 
-    if (DEBUG_MODE and !self.parser.had_error) {
-        var chunk = self.currentChunk();
+    if (DEBUG_MODE) {
+        const chunk = self.currentChunk();
         chunk.disassemble("code");
     }
 }
 
-fn binary(self: Self) void {
-    const opType = self.parser.previous.type;
-    const rule = getRule(opType);
-    self.parsePrecedence(@enumFromInt(rule.precedence.U8() + 1));
+fn binary(self: *Compiler) void {
+    const op_type = self.parser.previous.type;
+    const rule = getRule(op_type);
+    self.parsePrecedence(@enumFromInt(rule.precedence + 1));
 
-    switch (opType) {
+    switch (op_type) {
         TokenType.Plus => self.emitByte(Op.Add.U8()),
         TokenType.Minus => self.emitByte(Op.Sub.U8()),
         TokenType.Star => self.emitByte(Op.Mult.U8()),
@@ -156,12 +124,12 @@ fn binary(self: Self) void {
     }
 }
 
-fn grouping(self: Self) void {
+fn grouping(self: *Compiler) void {
     self.expression();
-    self.consume(TokenType.RightParen, "Expect ')' after expression.");
+    self.parser.consume(TokenType.RightParen, "Expect ')' after expression.");
 }
 
-fn number(self: Self) void {
+fn number(self: *Compiler) void {
     const double = std.fmt.parseFloat(f64, self.parser.previous.getString()) catch {
         return;
     };
@@ -169,48 +137,18 @@ fn number(self: Self) void {
     self.emitConstant(double);
 }
 
-fn unary(self: Self) void {
-    const opType = self.parser.previous.type;
+fn unary(self: *Compiler) void {
+    const op_type = self.parser.previous.type;
 
     self.parsePrecedence(Precedence.Unary);
 
-    switch (opType) {
+    switch (op_type) {
         TokenType.Minus => self.emitByte(Op.Negate.U8()),
         else => return,
     }
 }
 
-fn expression(self: Self) void {
-    self.parsePrecedence(Precedence.Assignment);
-}
-
-fn noOp(self: Self) void {
-    _ = self;
-}
-
-fn parsePrecedence(self: Self, precedence: Precedence) void {
-    self.advance();
-
-    const prefix = getRule(self.parser.previous.type).prefix;
-
-    std.log.debug("parser {any}", .{self.parser});
-
-    if (prefix == &noOp) {
-        self.parser.err("Expect expression.");
-        return;
-    }
-
-    prefix(self);
-
-    const next_prec = precedence.U8();
-    const rule_prec = getRule(self.parser.current.type).precedence.U8();
-
-    while (next_prec <= rule_prec and self.parser.current.type != TokenType.Eof) {
-        self.advance();
-        const infix = getRule(self.parser.previous.type).infix;
-        infix(self);
-    }
-}
+fn noOp(_: *Compiler) void {}
 
 fn getRule(token_type: TokenType) ParseRule {
     return switch (token_type) {
@@ -257,4 +195,25 @@ fn getRule(token_type: TokenType) ParseRule {
         .Eof          => .make(noOp,     noOp,   .None),
         // zig fmt: on
     };
+}
+
+fn parsePrecedence(self: *Compiler, prec: Precedence) void {
+    self.parser.advance();
+    const prefixFn: ParseFn = getRule(self.parser.previous.type).prefix;
+    if (prefixFn == noOp) {
+        self.parser.err("Expect expression.");
+        return;
+    }
+
+    prefixFn(self);
+
+    while (prec.U8() <= getRule(self.parser.current.type).precedence) {
+        self.parser.advance();
+        const infixFn = getRule(self.parser.previous.type).infix;
+        infixFn(self);
+    }
+}
+
+fn expression(self: *Compiler) void {
+    self.parsePrecedence(Precedence.Assignment);
 }
