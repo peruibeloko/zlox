@@ -167,9 +167,7 @@ fn checkKeyword(
 pub fn getToken(self: *Scanner) Token {
     self.skipWhitespace();
 
-    std.log.debug("scanner before reset {any}", .{self});
     self.start = self.current;
-    std.log.debug("scanner after reset {any}", .{self});
 
     if (self.isAtEnd()) return self.produce(TokenType.Eof);
 
