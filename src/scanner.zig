@@ -29,23 +29,23 @@ fn advance(self: *Scanner) u8 {
 }
 
 fn peek(self: *Scanner) u8 {
-    if (self.isAtEnd()) return 0;
+    if (self.current >= self.source.len) return 0;
     return self.source[self.current];
 }
 
 fn peekNext(self: *Scanner) u8 {
-    if (self.current >= self.source.len + 1) return 0;
+    if (self.isAtEnd()) return 0;
     return self.source[self.current + 1];
 }
 
 fn match(self: *Scanner, expected: u8) bool {
     if (self.isAtEnd()) return false;
-    if (self.peek() != expected) return false;
+    if (self.source[self.current] != expected) return false;
     self.current += 1;
     return true;
 }
 
-fn produce(self: *Scanner, token_type: TokenType) Token {
+fn makeToken(self: *Scanner, token_type: TokenType) Token {
     return .{
         .type = token_type,
         .slice = self.source[self.start..self.current],
@@ -70,11 +70,14 @@ fn isAlpha(c: u8) bool {
 }
 
 fn skipWhitespace(self: *Scanner) void {
-    if (self.isAtEnd()) return;
     while (true) {
         switch (self.peek()) {
             ' ', '\r', '\t' => _ = self.advance(),
-            '/' => if (!self.skipComment()) return,
+            '/' => if (self.peekNext() == '/') {
+                while (self.peek() != '\n' and !self.isAtEnd()) {
+                    _ = self.advance();
+                }
+            } else return,
             '\n' => {
                 self.line += 1;
                 _ = self.advance();
@@ -82,14 +85,6 @@ fn skipWhitespace(self: *Scanner) void {
             else => return,
         }
     }
-}
-
-fn skipComment(self: *Scanner) bool {
-    if (self.peekNext() != '/') return false;
-    while (self.peek() != '\n' and !self.isAtEnd()) {
-        _ = self.advance();
-    }
-    return true;
 }
 
 fn string(self: *Scanner) Token {
@@ -101,27 +96,28 @@ fn string(self: *Scanner) Token {
     if (self.isAtEnd()) return self.errorToken("Unterminated string.");
 
     _ = self.advance();
-    return self.produce(TokenType.String);
+    return self.makeToken(TokenType.String);
 }
 
 fn number(self: *Scanner) Token {
-    while (isDigit(self.peek()) and !self.isAtEnd()) _ = self.advance();
+    while (isDigit(self.peek())) _ = self.advance();
 
     if (self.peek() == '.' and isDigit(self.peekNext())) {
         _ = self.advance();
-        while (isDigit(self.peek()) and !self.isAtEnd()) _ = self.advance();
+        while (isDigit(self.peek())) _ = self.advance();
     }
 
-    return self.produce(TokenType.Number);
+    return self.makeToken(TokenType.Number);
 }
 
 fn identifier(self: *Scanner) Token {
-    const next = self.peek();
-    while (isAlpha(next) or isDigit(next)) _ = self.advance();
-    return self.produce(self.identifierType());
+    while (isAlpha(self.peek()) or isDigit(self.peek())) _ = self.advance();
+    return self.makeToken(self.identifierType());
 }
 
 fn identifierType(self: *Scanner) TokenType {
+    if (self.current - self.start == 1) return TokenType.Identifier;
+
     return switch (self.source[self.start]) {
         'a' => self.checkKeyword(1, 2, "nd", TokenType.And),
         'c' => self.checkKeyword(1, 4, "lass", TokenType.Class),
@@ -160,41 +156,46 @@ fn checkKeyword(
     rest: []const u8,
     token_type: TokenType,
 ) TokenType {
-    if (std.mem.eql(u8, self.source[start .. start + length], rest)) return token_type;
+    const right_size = self.current - self.start == start + length;
+    const src = self.source[self.start + start .. start + length];
+
+    if (right_size and std.mem.eql(u8, src, rest)) return token_type;
+
     return TokenType.Identifier;
 }
 
-pub fn getToken(self: *Scanner) Token {
+pub fn scanToken(self: *Scanner) Token {
     self.skipWhitespace();
 
     self.start = self.current;
 
-    if (self.isAtEnd()) return self.produce(TokenType.Eof);
+    if (self.isAtEnd()) return self.makeToken(TokenType.Eof);
 
     const c = self.advance();
 
-    if (isAlpha(c)) return self.identifier();
-    if (isDigit(c)) return self.number();
-
     return switch (c) {
-        '(' => self.produce(TokenType.LeftParen),
-        ')' => self.produce(TokenType.RightParen),
-        '{' => self.produce(TokenType.LeftBrace),
-        '}' => self.produce(TokenType.RightBrace),
-        ';' => self.produce(TokenType.Semicolon),
-        ',' => self.produce(TokenType.Comma),
-        '.' => self.produce(TokenType.Dot),
-        '-' => self.produce(TokenType.Minus),
-        '+' => self.produce(TokenType.Plus),
-        '/' => self.produce(TokenType.Slash),
-        '*' => self.produce(TokenType.Star),
+        '(' => self.makeToken(TokenType.LeftParen),
+        ')' => self.makeToken(TokenType.RightParen),
+        '{' => self.makeToken(TokenType.LeftBrace),
+        '}' => self.makeToken(TokenType.RightBrace),
+        ';' => self.makeToken(TokenType.Semicolon),
+        ',' => self.makeToken(TokenType.Comma),
+        '.' => self.makeToken(TokenType.Dot),
+        '-' => self.makeToken(TokenType.Minus),
+        '+' => self.makeToken(TokenType.Plus),
+        '/' => self.makeToken(TokenType.Slash),
+        '*' => self.makeToken(TokenType.Star),
 
-        '!' => self.produce(if (self.match('=')) TokenType.BangEqual else TokenType.Bang),
-        '=' => self.produce(if (self.match('=')) TokenType.EqualEqual else TokenType.Equal),
-        '<' => self.produce(if (self.match('=')) TokenType.LessEqual else TokenType.Less),
-        '>' => self.produce(if (self.match('=')) TokenType.GreaterEqual else TokenType.Greater),
+        '!' => self.makeToken(if (self.match('=')) TokenType.BangEqual else TokenType.Bang),
+        '=' => self.makeToken(if (self.match('=')) TokenType.EqualEqual else TokenType.Equal),
+        '<' => self.makeToken(if (self.match('=')) TokenType.LessEqual else TokenType.Less),
+        '>' => self.makeToken(if (self.match('=')) TokenType.GreaterEqual else TokenType.Greater),
 
         '"' => self.string(),
+
+        '0'...'9' => self.number(),
+
+        'a'...'z', 'A'...'Z', '_' => self.identifier(),
 
         else => self.errorToken("Unexpected character."),
     };
